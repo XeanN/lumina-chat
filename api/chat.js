@@ -111,24 +111,44 @@ export default async function handler(req, res) {
 
   await sql`insert into usage_log (user_id) values (${userId})`;
 
-  try {
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-5",
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      tools: [RESPOND_TOOL],
-      tool_choice: { type: "tool", name: "respond" },
-      messages,
-    });
+  // Streaming con tool_choice forzado: el SDK acumula los fragmentos
+  // `input_json_delta` del tool_use y los expone ya parseados (best-effort,
+  // vía un parser de JSON parcial) en el evento "inputJson". Así podemos leer
+  // `snapshot.reply` mientras el modelo todavía está generando el JSON
+  // completo, en vez de esperar a que el tool_use termine por completo.
+  res.status(200);
+  res.setHeader("Content-Type", "application/x-ndjson");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
 
-    const toolUse = response.content.find((b) => b.type === "tool_use");
-    if (!toolUse) {
-      return res.status(500).json({ error: "El modelo no devolvió una respuesta estructurada" });
+  const stream = anthropic.messages.stream({
+    model: "claude-sonnet-5",
+    max_tokens: 1024,
+    system: SYSTEM_PROMPT,
+    tools: [RESPOND_TOOL],
+    tool_choice: { type: "tool", name: "respond" },
+    messages,
+  });
+
+  let lastReplySent = "";
+  stream.on("inputJson", (_partialJson, snapshot) => {
+    if (snapshot && typeof snapshot.reply === "string" && snapshot.reply !== lastReplySent) {
+      lastReplySent = snapshot.reply;
+      res.write(JSON.stringify({ type: "delta", reply: snapshot.reply }) + "\n");
     }
+  });
 
-    return res.status(200).json(toolUse.input);
+  try {
+    const finalMessage = await stream.finalMessage();
+    const toolUse = finalMessage.content.find((b) => b.type === "tool_use");
+    if (!toolUse) {
+      res.write(JSON.stringify({ type: "error", error: "El modelo no devolvió una respuesta estructurada" }) + "\n");
+    } else {
+      res.write(JSON.stringify({ type: "final", reply: toolUse.input.reply, risk_level: toolUse.input.risk_level }) + "\n");
+    }
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: "Error al procesar el mensaje" });
+    res.write(JSON.stringify({ type: "error", error: "Error al procesar el mensaje" }) + "\n");
   }
+
+  res.end();
 }

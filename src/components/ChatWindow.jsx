@@ -5,6 +5,7 @@ export default function ChatWindow() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [streaming, setStreaming] = useState(false);
   const [riskLevel, setRiskLevel] = useState(1);
   const bottomRef = useRef(null);
 
@@ -28,13 +29,60 @@ export default function ChatWindow() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: newMessages }),
       });
-      const data = await res.json();
 
-      if (!res.ok) throw new Error(data.error || "Error desconocido");
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Error desconocido");
+      }
 
-      setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
-      // el nivel de riesgo nunca baja solo dentro de la misma sesión
-      setRiskLevel((prev) => Math.max(prev, data.risk_level));
+      // api/chat.js responde en NDJSON: una línea JSON por evento
+      // ({type:"delta"} mientras el modelo escribe, {type:"final"} al
+      // terminar con el risk_level ya definido). Se arma el texto de a
+      // poco en vez de esperar la respuesta completa.
+      let assistantIndex = -1;
+      let finalRiskLevel = null;
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let newlineIndex;
+        while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
+          const line = buffer.slice(0, newlineIndex);
+          buffer = buffer.slice(newlineIndex + 1);
+          if (!line.trim()) continue;
+
+          const event = JSON.parse(line);
+
+          if (event.type === "error") throw new Error(event.error);
+
+          if (event.type === "delta" || event.type === "final") {
+            setStreaming(true);
+            setMessages((prev) => {
+              if (assistantIndex === -1) {
+                assistantIndex = prev.length;
+                return [...prev, { role: "assistant", content: event.reply }];
+              }
+              const next = [...prev];
+              next[assistantIndex] = { role: "assistant", content: event.reply };
+              return next;
+            });
+          }
+
+          if (event.type === "final") {
+            finalRiskLevel = event.risk_level;
+          }
+        }
+      }
+
+      if (finalRiskLevel != null) {
+        // el nivel de riesgo nunca baja solo dentro de la misma sesión
+        setRiskLevel((prev) => Math.max(prev, finalRiskLevel));
+      }
     } catch (err) {
       setMessages((prev) => [
         ...prev,
@@ -42,6 +90,7 @@ export default function ChatWindow() {
       ]);
     } finally {
       setLoading(false);
+      setStreaming(false);
     }
   }
 
@@ -62,7 +111,7 @@ export default function ChatWindow() {
             {m.content}
           </div>
         ))}
-        {loading && (
+        {loading && !streaming && (
           <div className="chat-bubble chat-bubble-assistant chat-typing">
             Lumina está escribiendo…
           </div>
