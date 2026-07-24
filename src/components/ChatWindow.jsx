@@ -13,6 +13,22 @@ export default function ChatWindow() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    async function loadHistory() {
+      try {
+        const res = await fetch("/api/messages");
+        if (!res.ok) return;
+        const data = await res.json();
+        setMessages(data.messages.map((m) => ({ role: m.role, content: m.content })));
+        const maxRisk = data.messages.reduce((max, m) => Math.max(max, m.risk_level || 1), 1);
+        setRiskLevel(maxRisk);
+      } catch {
+        // si falla la carga del historial, se arranca con el chat vacío
+      }
+    }
+    loadHistory();
+  }, []);
+
   async function sendMessage(e) {
     e.preventDefault();
     if (!input.trim() || loading) return;

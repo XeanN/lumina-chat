@@ -111,6 +111,13 @@ export default async function handler(req, res) {
 
   await sql`insert into usage_log (user_id) values (${userId})`;
 
+  const lastUserMessage = messages[messages.length - 1];
+  if (lastUserMessage?.role === "user" && typeof lastUserMessage.content === "string") {
+    await sql`
+      insert into messages (user_id, role, content) values (${userId}, 'user', ${lastUserMessage.content})
+    `;
+  }
+
   // Streaming con tool_choice forzado: el SDK acumula los fragmentos
   // `input_json_delta` del tool_use y los expone ya parseados (best-effort,
   // vía un parser de JSON parcial) en el evento "inputJson". Así podemos leer
@@ -143,7 +150,11 @@ export default async function handler(req, res) {
     if (!toolUse) {
       res.write(JSON.stringify({ type: "error", error: "El modelo no devolvió una respuesta estructurada" }) + "\n");
     } else {
-      res.write(JSON.stringify({ type: "final", reply: toolUse.input.reply, risk_level: toolUse.input.risk_level }) + "\n");
+      const { reply, risk_level } = toolUse.input;
+      await sql`
+        insert into messages (user_id, role, content, risk_level) values (${userId}, 'assistant', ${reply}, ${risk_level})
+      `;
+      res.write(JSON.stringify({ type: "final", reply, risk_level }) + "\n");
     }
   } catch (err) {
     console.error(err);
