@@ -111,8 +111,14 @@ export default async function handler(req, res) {
 
   await sql`insert into usage_log (user_id) values (${userId})`;
 
+  // El historial guardado (tabla messages) es un beneficio premium — el
+  // texto en sí es ilimitado para todos los planes, esto solo decide si
+  // la conversación persiste entre sesiones.
+  const [userRow] = await sql`select plan from users where id = ${userId}`;
+  const isPremium = userRow?.plan === "premium";
+
   const lastUserMessage = messages[messages.length - 1];
-  if (lastUserMessage?.role === "user" && typeof lastUserMessage.content === "string") {
+  if (isPremium && lastUserMessage?.role === "user" && typeof lastUserMessage.content === "string") {
     await sql`
       insert into messages (user_id, role, content) values (${userId}, 'user', ${lastUserMessage.content})
     `;
@@ -151,9 +157,11 @@ export default async function handler(req, res) {
       res.write(JSON.stringify({ type: "error", error: "El modelo no devolvió una respuesta estructurada" }) + "\n");
     } else {
       const { reply, risk_level } = toolUse.input;
-      await sql`
-        insert into messages (user_id, role, content, risk_level) values (${userId}, 'assistant', ${reply}, ${risk_level})
-      `;
+      if (isPremium) {
+        await sql`
+          insert into messages (user_id, role, content, risk_level) values (${userId}, 'assistant', ${reply}, ${risk_level})
+        `;
+      }
       res.write(JSON.stringify({ type: "final", reply, risk_level }) + "\n");
     }
   } catch (err) {

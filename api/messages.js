@@ -11,6 +11,11 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: "Necesitas iniciar sesión" });
   }
 
+  const [user] = await sql`select plan from users where id = ${userId}`;
+  if (user?.plan !== "premium") {
+    return res.status(200).json({ messages: [] });
+  }
+
   const rows = await sql`
     select role, content, risk_level from messages
     where user_id = ${userId}
