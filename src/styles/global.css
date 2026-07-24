@@ -173,3 +173,12 @@ a:focus-visible, button:focus-visible, .btn:focus-visible, .input:focus-visible,
 .premium-plan-option-active{ border-color:var(--accent); background:rgba(224,171,82,.08); }
 .premium-plan-label{ font-family:var(--font-display); font-weight:500; font-size:15px; margin-bottom:4px; }
 .premium-plan-price{ font-size:14px; }
+
+/* Audio */
+
+.audio-review{
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  background: var(--panel);
+}

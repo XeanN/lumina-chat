@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import HelpBanner from "./HelpBanner";
 import VideoCallEntry from "./VideoCallEntry";
+import AudioRecorder from "./AudioRecorder";
 
 export default function ChatWindow({ plan, onOpenPremium }) {
   const [messages, setMessages] = useState([]);
@@ -8,12 +9,8 @@ export default function ChatWindow({ plan, onOpenPremium }) {
   const [loading, setLoading] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [riskLevel, setRiskLevel] = useState(1);
-  const [recording, setRecording] = useState(false);
-  const [transcribing, setTranscribing] = useState(false);
   const [stats, setStats] = useState(null);
   const bottomRef = useRef(null);
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -134,68 +131,6 @@ export default function ChatWindow({ plan, onOpenPremium }) {
     sendText(input);
   }
 
-  async function transcribeAndSend(blob) {
-    setTranscribing(true);
-    try {
-      const base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-
-      const res = await fetch("/api/transcribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ audio: base64, mimeType: blob.type }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "No pudimos transcribir el audio");
-
-      await sendText(data.text);
-    } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: err.message || "No pudimos procesar el audio." },
-      ]);
-    } finally {
-      setTranscribing(false);
-    }
-  }
-
-  async function startRecording() {
-    if (plan !== "premium") {
-      onOpenPremium?.();
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      audioChunksRef.current = [];
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
-      recorder.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || "audio/webm" });
-        transcribeAndSend(blob);
-      };
-      recorder.start();
-      mediaRecorderRef.current = recorder;
-      setRecording(true);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "No pudimos acceder al micrófono. Revisa los permisos del navegador." },
-      ]);
-    }
-  }
-
-  function stopRecording() {
-    mediaRecorderRef.current?.stop();
-    setRecording(false);
-  }
-
   return (
     <div className="chat-window">
       <p className="chat-disclaimer small muted">
@@ -237,15 +172,11 @@ export default function ChatWindow({ plan, onOpenPremium }) {
 
       <VideoCallEntry plan={plan} onUpgrade={onOpenPremium} />
 
+      {plan === "premium" && (
+        <AudioRecorder disabled={loading} onConfirmedText={(text) => setInput(text)} />
+      )}
+
       <form className="chat-input-row" onSubmit={handleSubmit}>
-        <button
-          type="button"
-          className={recording ? "btn btn-primary" : "btn btn-ghost"}
-          onClick={recording ? stopRecording : startRecording}
-          disabled={loading || transcribing}
-        >
-          {recording ? "Detener" : transcribing ? "Transcribiendo…" : "Audio"}
-        </button>
         <input
           className="input"
           value={input}
