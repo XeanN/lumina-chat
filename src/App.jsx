@@ -3,19 +3,40 @@ import ChatWindow from "./components/ChatWindow";
 import Auth from "./pages/Auth";
 
 export default function App() {
-  const [user, setUser] = useState(undefined); // undefined = cargando, null = no logueado
+  const [user, setUser] = useState(undefined);
+  const [error, setError] = useState(null);
 
   async function checkSession() {
-    const res = await fetch("/api/auth/me");
-    const data = await res.json();
-    setUser(data.user);
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/me");
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const data = await res.json();
+      setUser(data.user);
+    } catch {
+      setError("No se pudo conectar con el servidor. Verifica que estés corriendo `vercel dev` y no `npm run dev`.");
+      setUser(null);
+    }
   }
 
   useEffect(() => {
     checkSession();
   }, []);
 
-  if (user === undefined) return null; // o un spinner simple
+  if (user === undefined && !error) {
+    return <p className="muted" style={{ padding: 40, textAlign: "center" }}>Cargando…</p>;
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: 40, textAlign: "center" }}>
+        <p className="muted">{error}</p>
+        <button className="btn btn-ghost" style={{ marginTop: 12 }} onClick={checkSession}>
+          Reintentar
+        </button>
+      </div>
+    );
+  }
 
   if (!user) return <Auth onAuthenticated={checkSession} />;
 
