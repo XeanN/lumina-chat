@@ -23,7 +23,7 @@ export default async function handler(req, res) {
 
     const resetUrl = `${process.env.APP_URL}/reset-password?token=${rawToken}`;
 
-    await resend.emails.send({
+    const { error: sendError } = await resend.emails.send({
       from: "Lumina <no-responder@aliiatech.com>",
       to: email,
       subject: "Recupera tu contraseña de Lumina",
@@ -31,6 +31,10 @@ export default async function handler(req, res) {
              <p><a href="${resetUrl}">Haz clic aquí para crear una nueva contraseña</a></p>
              <p>Este enlace vence en 30 minutos. Si no fuiste tú, ignora este correo.</p>`,
     });
+
+    // No lo reflejamos en la respuesta (seguimos sin revelar si la cuenta existe),
+    // pero sin este log un dominio no verificado en Resend falla en silencio total.
+    if (sendError) console.error("Resend error en forgot-password:", sendError);
   }
 
   return res.status(200).json({ ok: true });
