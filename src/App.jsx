@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
 import ChatWindow from "./components/ChatWindow";
 import Auth from "./pages/Auth";
+import Premium from "./pages/Premium";
 
 export default function App() {
   const [user, setUser] = useState(undefined);
   const [error, setError] = useState(null);
+  const [view, setView] = useState("chat");
 
   async function checkSession() {
     setError(null);
@@ -40,13 +42,25 @@ export default function App() {
 
   if (!user) return <Auth onAuthenticated={checkSession} />;
 
+  if (view === "premium") {
+    return (
+      <Premium
+        onSubscribed={async () => {
+          await checkSession();
+          setView("chat");
+        }}
+        onClose={() => setView("chat")}
+      />
+    );
+  }
+
   return (
     <div className="chat-page">
       <header className="chat-header">
         <span className="brand-dot" aria-hidden="true" />
         <span className="brand-name">LÚMINA</span>
       </header>
-      <ChatWindow />
+      <ChatWindow plan={user.plan} onOpenPremium={() => setView("premium")} />
     </div>
   );
 }

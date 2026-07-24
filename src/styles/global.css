@@ -42,6 +42,18 @@ a{ color: inherit; }
 
 .form{ display:flex; flex-direction:column; gap: 14px; }
 .label{ display:flex; flex-direction:column; gap: 6px; color: var(--muted); font-size: 13px; }
+.list{ margin: 10px 0 0; padding-left: 18px; color: var(--muted); }
+.badge{
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  color: var(--accent-strong);
+  background: rgba(224,171,82,.08);
+  display: inline-block;
+  margin-top: 6px;
+}
 
 .btn{
   border: 1px solid var(--border-strong);
@@ -139,3 +151,25 @@ a:focus-visible, button:focus-visible, .btn:focus-visible, .input:focus-visible,
 
 .auth-page{ min-height:100dvh; display:flex; align-items:center; justify-content:center; padding:20px; }
 .auth-card{ width:100%; max-width:380px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:28px; }
+
+/* Premium */
+
+.premium-page{ min-height:100dvh; display:flex; align-items:center; justify-content:center; padding:20px; }
+.premium-card{ width:100%; max-width:440px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:28px; }
+.premium-close{ display:block; margin-bottom:16px; }
+
+.premium-plans{ display:flex; gap:10px; }
+.premium-plan-option{
+  flex:1;
+  text-align:left;
+  background:var(--panel);
+  border:1px solid var(--border-strong);
+  border-radius:var(--radius);
+  padding:14px;
+  cursor:pointer;
+  color:var(--text);
+  font-family:inherit;
+}
+.premium-plan-option-active{ border-color:var(--accent); background:rgba(224,171,82,.08); }
+.premium-plan-label{ font-family:var(--font-display); font-weight:500; font-size:15px; margin-bottom:4px; }
+.premium-plan-price{ font-size:14px; }
